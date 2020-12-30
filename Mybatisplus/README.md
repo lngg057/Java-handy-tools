@@ -26,13 +26,13 @@ MybatisPlus内置有条件查询器，并且支持Lamda的调用方式，可以�
 
 ## 特色功能
 
-1. 自动分页插件
+1. ### 自动分页插件
 
     MybatisPlus内置一款相对来说比较好用的分页插件` PaginationInterceptor`，可以通过 spring xml的形式或者springboot的 @Configuration形式来配置导入。
 
     该分页插件可以做些简单的参数配置，包括请求越界之后的操作，最大单页请求数量限制等。配置完毕后，可以直接在方法调用的参数中传入IPage对象即可实现自动分页的操作。
 
-2. 自动填充功能
+2. ### 自动填充功能
 
     在设计表结构时，通常会有一些表通用字段，比方说` createTime`， ` updateTime`  ，`createUser` ，`updateUser` 等。
 
@@ -82,7 +82,7 @@ MybatisPlus内置有条件查询器，并且支持Lamda的调用方式，可以�
 
     3. 具体的实现方案可以参考官方文档和demo描述。
 
-3. 逻辑删除功能
+3. ### 逻辑删除功能
 
     对于某些系统来说，为了方便数据恢复和保护数据本身价值，在实际进行数据库删除操作的时候，并不会真正的对这些数据进行物理磁盘删除，而是通过特殊的指定字段，来进行逻辑删除。
 
@@ -110,24 +110,175 @@ MybatisPlus内置有条件查询器，并且支持Lamda的调用方式，可以�
     > - 支持所有数据类型(推荐使用 `Integer`,`Boolean`,`LocalDateTime`)
     > - 如果数据库字段使用`datetime`,逻辑未删除值和已删除值支持配置为字符串`null`,另一个值支持配置为函数来获取值如`now()`
 
-4. 动态表名插件
+4. ### 动态表名插件
 
     插件的使用场景：在进行一些简单分区的表结构中（比方说业务上将用户表按照一定的规则拆分成多张表等），可以通过该插件，在不修改顶层通用的实现逻辑和对外表象的基础上，进行指定数据库表的增删改查操作。
 
-    具体实现方案：👉 [mybatis-plus-sample-dynamic-tablename](https://gitee.com/baomidou/mybatis-plus-samples/tree/master/mybatis-plus-sample-dynamic-tablename)
+    具体实现方案参考：👉 [mybatis-plus-sample-dynamic-tablename](https://gitee.com/baomidou/mybatis-plus-samples/tree/master/mybatis-plus-sample-dynamic-tablename)
 
     > **注意事项**：
     >
     > - 底层实现原理为解析替换设定表名为处理器的返回表名，表名建议可以定义复杂一些避免误替换
     > - 例如：真实表名为 user 设定为 mp_dt_user 处理器替换为 user_2019 等
 
-5. 多租户插件
+5. ### 多租户插件
 
-6. 乐观锁配置
+    具体实现方案参考：👉 [mybatis-plus-sample-tenant](https://gitee.com/baomidou/mybatis-plus-samples/tree/master/mybatis-plus-sample-tenant)
 
-7. SQL性能规范
+    租户概念是一个独立的概念，当系统需要对同一个模块的数据采用区域隔离的方式来访问时，就可以采用租户来实现对应功能。
 
-8. 防止全表更新与删除
+    MybatisPlus自带多租户插件，启用多租户插件后所有执行的method的sql都会进行处理，来按照对应的租户ID进行数据过滤。
+
+    下面提供一种可能性的配置多租户的方案。
+
+    1. 租户属性。
+
+        ```xml
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-boot-starter</artifactId>
+            <version>3.4.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-extension</artifactId>
+            <version>3.4.0</version>
+        </dependency>
+        ```
+
+        
+
+    2. 租户配置。
+
+        ```java
+        package vip.mate.core.database.props;
+        
+        import lombok.Getter;
+        import lombok.Setter;
+        import org.springframework.boot.context.properties.ConfigurationProperties;
+        import org.springframework.cloud.context.config.annotation.RefreshScope;
+        
+        import java.util.ArrayList;
+        import java.util.Arrays;
+        import java.util.List;
+        
+        /**
+         * 租户属性
+         */
+        @Getter
+        @Setter
+        @RefreshScope
+        @ConfigurationProperties(prefix = "mate.tenant")
+        public class TenantProperties {
+        
+            /**
+             * 是否开启租户模式
+             */
+            private Boolean enable = true;
+        
+            /**
+             * 需要排除的多租户的表
+             */
+            private List<String> ignoreTables = Arrays.asList("mate_sys_user", "mate_sys_depart", "mate_sys_role", "mate_sys_tenant", "mate_sys_role_permission");
+        
+            /**
+             * 多租户字段名称
+             */
+            private String column = "tenant_id";
+        
+            /**
+             * 排除不进行租户隔离的sql
+             * 样例全路径：vip.mate.system.mapper.UserMapper.findList
+             */
+            private List<String> ignoreSqls = new ArrayList<>();
+        }
+        ```
+
+        
+
+    3. Mybatis plus配置。
+
+        ```java
+        package vip.mate.core.database.config;
+        
+        import com.baomidou.mybatisplus.extension.plugins.handler.TenantLineHandler;
+        import com.baomidou.mybatisplus.extension.plugins.inner.TenantLineInnerInterceptor;
+        import lombok.AllArgsConstructor;
+        import net.sf.jsqlparser.expression.Expression;
+        import net.sf.jsqlparser.expression.NullValue;
+        import net.sf.jsqlparser.expression.StringValue;
+        import org.springframework.boot.autoconfigure.AutoConfigureBefore;
+        import org.springframework.boot.context.properties.EnableConfigurationProperties;
+        import org.springframework.context.annotation.Bean;
+        import org.springframework.context.annotation.Configuration;
+        import vip.mate.core.common.context.TenantContextHolder;
+        import vip.mate.core.database.props.TenantProperties;
+        
+        /**
+         * 多租户配置中心
+         */
+        @Configuration
+        @AllArgsConstructor
+        @AutoConfigureBefore(MybatisPlusConfiguration.class)
+        @EnableConfigurationProperties(TenantProperties.class)
+        public class TenantConfiguration {
+        
+            private final TenantProperties tenantProperties;
+        
+            /**
+             * 新多租户插件配置,一缓和二缓遵循mybatis的规则,
+             * 需要设置 MybatisConfiguration#useDeprecatedExecutor = false
+             * 避免缓存万一出现问题
+             * @return
+             */
+            @Bean
+            public TenantLineInnerInterceptor tenantLineInnerInterceptor(){
+                return new TenantLineInnerInterceptor(new TenantLineHandler() {
+                    /**
+                     * 获取租户ID
+                     * @return
+                     */
+                    @Override
+                    public Expression getTenantId() {
+                        String tenant = TenantContextHolder.getTenantId();
+                        if (tenant != null) {
+                            return new StringValue(TenantContextHolder.getTenantId());
+                        }
+                        return new NullValue();
+                    }
+        
+                    /**
+                     * 获取多租户的字段名
+                     * @return String
+                     */
+                    @Override
+                    public String getTenantIdColumn() {
+                        return tenantProperties.getColumn();
+                    }
+        
+                    /**
+                     * 过滤不需要根据租户隔离的表
+                     * 这是 default 方法,默认返回 false 表示所有表都需要拼多租户条件
+                     * @param tableName 表名
+                     */
+                    @Override
+                    public boolean ignoreTable(String tableName) {
+                        return tenantProperties.getIgnoreTables().stream().anyMatch(
+                                (t) -> t.equalsIgnoreCase(tableName)
+                        );
+                    }
+                });
+            }
+        }
+        ```
+
+        
+
+6. ### 乐观锁配置
+
+7. ### SQL性能规范
+
+8. ### 防止全表更新与删除
 
 ## 有瑕疵的地方
 

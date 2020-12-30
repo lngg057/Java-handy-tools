@@ -7,8 +7,11 @@
 > 每篇工具都会简要介绍如何使用，以及工具相关的主要亮点和便捷之处。
 
 1. ## Mybatisplus
-   
+  
    [Mybatisplus简介](https://github.com/lngg057/Java-handy-tools/blob/main/Mybatisplus/README.md)
-2. ## Lombook
    
+   实际推荐度：⭐️⭐️⭐️⭐️⭐️
+   
+2. ## Lombook
+  
    [Lombook简介](https://github.com/lngg057/Java-handy-tools/blob/main/Lombook/README.md)

@@ -1,6 +1,6 @@
 # MybatisPlus 辅助插件
 
-> 一款基于Mybatis功能的扩展插件，可以实现类似于'JPA'模式的，通过对象操作数据库的形式来进行数据操作，而不用编写sql语句。
+> 一款基于Mybatis功能的扩展插件，可以实现类似于`JPA`模式的，通过对象操作数据库的形式来进行数据操作，而不用编写sql语句。
 
 ## 官网地址
 
@@ -131,7 +131,7 @@ MybatisPlus内置有条件查询器，并且支持Lamda的调用方式，可以�
 
     下面提供一种可能性的配置多租户的方案。
 
-    1. 租户属性。
+    1. 添加相关依赖项。
 
         ```xml
         <dependency>
@@ -151,8 +151,6 @@ MybatisPlus内置有条件查询器，并且支持Lamda的调用方式，可以�
     2. 租户配置。
 
         ```java
-        package vip.mate.core.database.props;
-        
         import lombok.Getter;
         import lombok.Setter;
         import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -188,21 +186,18 @@ MybatisPlus内置有条件查询器，并且支持Lamda的调用方式，可以�
         
             /**
              * 排除不进行租户隔离的sql
-             * 样例全路径：vip.mate.system.mapper.UserMapper.findList
              */
             private List<String> ignoreSqls = new ArrayList<>();
         }
         ```
-
         
-
-    3. Mybatis plus配置。
-
-        ```java
-        package vip.mate.core.database.config;
         
+        
+3. MybatisPlus配置。
+    
+    ```java
         import com.baomidou.mybatisplus.extension.plugins.handler.TenantLineHandler;
-        import com.baomidou.mybatisplus.extension.plugins.inner.TenantLineInnerInterceptor;
+    import com.baomidou.mybatisplus.extension.plugins.inner.TenantLineInnerInterceptor;
         import lombok.AllArgsConstructor;
         import net.sf.jsqlparser.expression.Expression;
         import net.sf.jsqlparser.expression.NullValue;
@@ -271,21 +266,67 @@ MybatisPlus内置有条件查询器，并且支持Lamda的调用方式，可以�
             }
         }
         ```
-
         
-
+        
+    
 6. ### 乐观锁配置
 
-7. ### SQL性能规范
+    首先简单说明一下MybatisPlus关于乐观锁的实现，关于乐观锁的原理这里暂不赘述。
 
-8. ### 防止全表更新与删除
+    MybatisPlus要实现乐观锁的前提是在数据库添加对应的版本` version` 字段，并在对应的Java实体对象属性字段上添加`@Version`注解。
+
+    之后MybatisPlus在操作更新该表的时候就会进行乐观锁判断，从而避免级联更新的问题。
+
+    具体的操作逻辑如下：
+
+    - 取出记录时，获取当前数据库的version字段值
+    - 更新时，储存该version值
+    - 执行更新时， set version = newVersion where version = oldVersion
+    - 如果在上一步执行更新操作的时候，version不对，则说明该条记录已经被其他进程更新过了，则该条更新失败
+
+7. ### 性能分析插件
+
+    MybatisPlus内置的性能分析插件，可在控制台输出实际执行的完整Sql语句以及该语句具体的执行时间。在测试时启用该功能，能有效解决慢查询。
+
+    **注意**：该功能比较严重影响项目跑起来的性能，所以在线上环境发布的时候建议直接关闭该性能分析插件，只在测试环境使用。
+
+    插件的使用依赖 `p6spy` 组件，使用前需要添加p6spy 依赖
+
+    ```xml
+    <dependency>
+      <groupId>p6spy</groupId>
+      <artifactId>p6spy</artifactId>
+      <version>最新版本</version>
+    </dependency>
+    ```
+
+    同时配置添加application.yml文件即可使用
+
+    ```yaml
+    spring:
+      datasource:
+        driver-class-name: com.p6spy.engine.spy.P6SpyDriver
+        url: jdbc:p6spy:h2:mem:test
+    ```
+
+
 
 ## 有瑕疵的地方
 
-1. 大部分情况下只是针对单表查询的操作。在面对跨多张表进行级联查询，映射多个对象的时候，该插件就基本毫无发挥的余地，这时就只能回到最原始的Mybatis操作，进行Mapper的自定义SQL编写和多对象数据的绑定
+1. 大部分情况下只是针对单表查询的操作。在面对跨多张表进行级联查询，映射多个对象的时候，该插件就基本毫无发挥的余地，这时就只能回到最原始的Mybatis操作，进行Mapper的自定义SQL编写和多对象数据的绑定。
 
 2. 分页插件不能很好地处理多个` left join` 操作。在自定义编写执行SQL时，如果SQL 中包含多级` left join` 操作，而没有按照要求的格式编写语句（比方说没有给查询关联的表或者字段设置别名等），则会出现**分页查询的结果和总数不匹配**的情况 。
 
-    原因是因为MybatisPlus的分页插件在生成 countSql 时，会在 `left join` 的表不参与 `where` 条件的情况下,把 `left join` 优化掉。所以这里也是个坑
+    原因是因为MybatisPlus的分页插件在生成 countSql 时，会在 `left join` 的表不参与 `where` 条件的情况下,把 `left join` 优化掉。所以这里也是个坑。
 
-3. 
+3. 多租户插件也是有一样类似的问题，如果编写的sql涉及到级联多张表，特别是有`inner join`查询的时候，会发生数据查询不完整的情况发生。所以需要在编写sql的时候对每张关联的表设置别名， inner join 的要写标准的 inner join。
+
+## 简单总结
+
+实际用来很舒服的一款插件。
+
+不管是Mapper还是Service层，只要引用了MybatisPlus即可以方便快速的写出直观漂亮的CRUD方法。
+
+同时内置的很多插件也极大地提升了开发效率，能有效的推进项目进度开发。
+
+实际推荐度：⭐️⭐️⭐️⭐️⭐️

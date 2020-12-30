@@ -2,3 +2,139 @@
 
 > 一款基于Mybatis功能的扩展插件，可以实现类似于'JPA'模式的，通过对象操作数据库的形式来进行数据操作，而不用编写sql语句。
 
+## 官网地址
+
+https://baomidou.com
+
+## 代码托管地址
+
+**[Gitee](https://gitee.com/baomidou/mybatis-plus)**| **[Github](https://github.com/baomidou/mybatis-plus)**
+
+## 插件简介
+
+MybatisPlus是一款非常好用且便捷的Mybatis扩展插件，经常荣登Java插件使用热门排行榜TOP1。
+
+MybatisPlus属于侵入度极低的Mybatis增强插件，引入后既不会产生过大的损耗，也不会改变现有的相关逻辑。也就是说从Maven中引入该项目后，基本不会对现有的项目框架、逻辑以及性能产生太大的影响。
+
+MybatisPlus的基本使用规则是，通过对象调用的形式来进行增删改查等数据库操作。
+
+同时插件内置已经定义好的Mapper和Service类对象，里面包含对应层级的常规单表操作，比方说：单表的插入、根据主键的更新、根据查询条件的更新、批量新增更新操作、根据查询条件的列表以及分页查询等。而以上的这些仅仅需要少量的配置即可实现。
+
+MybatisPlus内置有条件查询器，并且支持Lamda的调用方式，可以非常方便的通多对象调用的方法，来构造想要的查询条件，而无需将查询参数从Controller层一路传到Mapper，也不需要担心写错或者拼错查询SQL字段。
+
+插件支持自动生成主键，也支持数据库默认自增。MybatisPlus内置多种主键生成策略，配置后即可以在插入操作时自动生成主键ID，并更新到数据表中。自带的生成主键规则有雪花算法和UUID。自带的数据库主键策略有DB2KeyGenerator，PostgreKeyGenerator，OracleKeyGenerator，H2KeyGenerator等，如果内置支持不满足你的需求，也可通过调用实现IKeyGenerator接口来进行扩展。
+
+## 特色功能
+
+1. 自动分页插件
+
+    MybatisPlus内置一款相对来说比较好用的分页插件` PaginationInterceptor`，可以通过 spring xml的形式或者springboot的 @Configuration形式来配置导入。
+
+    该分页插件可以做些简单的参数配置，包括请求越界之后的操作，最大单页请求数量限制等。配置完毕后，可以直接在方法调用的参数中传入IPage对象即可实现自动分页的操作。
+
+2. 自动填充功能
+
+    在设计表结构时，通常会有一些表通用字段，比方说` createTime`， ` updateTime`  ，`createUser` ，`updateUser` 等。
+
+    这些字段如果不进行通用处理的话，基本会零散分布在项目的各个代码中，并且会经常会缺失操作某几个字段，特别是在多个人编写代码，新增功能或者修复遗留问题的时候尤为明显。
+
+    MybatisPlus内置提供**自动填充功能**，并且使用也很简单。
+
+    1. 第一步需要自己编写@Component，并实现` MetaObjectHandler`接口的引用，并重写其对应的`insertFil`l和`updateFill`方法即可（这两个方法，一个是在你执行插入，一个是你在执行更新操作时，自定义的数据赋值操作）。
+
+        ```java
+        @Slf4j
+        @Component
+        public class MyMetaObjectHandler implements MetaObjectHandler {
+        
+            @Override
+            public void insertFill(MetaObject metaObject) {
+                log.info("start insert fill ....");
+                this.strictInsertFill(metaObject, "createTime", LocalDateTime.class, LocalDateTime.now()); // 起始版本 3.3.0(推荐使用)
+                // 或者
+                this.strictInsertFill(metaObject, "createTime", () -> LocalDateTime.now(), LocalDateTime.class); // 起始版本 3.3.3(推荐)
+                // 或者
+                this.fillStrategy(metaObject, "createTime", LocalDateTime.now()); // 也可以使用(3.3.0 该方法有bug)
+            }
+        
+            @Override
+            public void updateFill(MetaObject metaObject) {
+                log.info("start update fill ....");
+                this.strictUpdateFill(metaObject, "updateTime", LocalDateTime.class, LocalDateTime.now()); // 起始版本 3.3.0(推荐)
+                // 或者
+                this.strictUpdateFill(metaObject, "updateTime", () -> LocalDateTime.now(), LocalDateTime.class); // 起始版本 3.3.3(推荐)
+                // 或者
+                this.fillStrategy(metaObject, "updateTime", LocalDateTime.now()); // 也可以使用(3.3.0 该方法有bug)
+            }
+        }
+        ```
+
+    2. 第二步需要将对应数据实体进行自动填充的对象添加注解` @TableField(.. fill = FieldFill.INSERT)`，具体的fill 类型，则需要根据该字段需要在什么时候被操作来决定。
+
+        ```java
+        public class User {
+            // 注意！这里需要标记为填充字段
+            @TableField(.. fill = FieldFill.INSERT)
+            private String fillField;
+            ....
+        }
+        ```
+
+    3. 具体的实现方案可以参考官方文档和demo描述。
+
+3. 逻辑删除功能
+
+    对于某些系统来说，为了方便数据恢复和保护数据本身价值，在实际进行数据库删除操作的时候，并不会真正的对这些数据进行物理磁盘删除，而是通过特殊的指定字段，来进行逻辑删除。
+
+    MybatisPlus可以支持全局配置对应的逻辑删除字段，来达到一处配置，处处使用的效果。配置方法如下
+
+    1. 在对应的yml或者properties配置文件中添加` logic-delete-field`配置字段，来指定数据库中的哪个字段映射为逻辑删除标志字段，并根据` logic-delete-value` 和` logic-not-delete-value` 来指定他对应逻辑删除和不删除的值。
+    2. 在实体类字段上加上`@TableLogic`注解。
+
+    > **说明**:
+    >
+    > 逻辑删除只对**自动注入**的sql起效，换句话说，就是自己编写的SQL不会执行逻辑删除相关操作，这时候需要自行进行相关操作:
+    >
+    > - 插入: 不作限制
+    > - 查找: 追加where条件过滤掉已删除数据,且使用 wrapper.entity 生成的where条件会忽略该字段
+    > - 更新: 追加where条件防止更新到已删除数据,且使用 wrapper.entity 生成的where条件会忽略该字段
+    > - 删除: 转变为 更新
+    >
+    > 例如:
+    >
+    > - 删除: `update user set deleted=1 where id = 1 and deleted=0`
+    > - 查找: `select id,name,deleted from user where deleted=0`
+    >
+    > 字段类型支持说明:
+    >
+    > - 支持所有数据类型(推荐使用 `Integer`,`Boolean`,`LocalDateTime`)
+    > - 如果数据库字段使用`datetime`,逻辑未删除值和已删除值支持配置为字符串`null`,另一个值支持配置为函数来获取值如`now()`
+
+4. 动态表名插件
+
+    插件的使用场景：在进行一些简单分区的表结构中（比方说业务上将用户表按照一定的规则拆分成多张表等），可以通过该插件，在不修改顶层通用的实现逻辑和对外表象的基础上，进行指定数据库表的增删改查操作。
+
+    具体实现方案：👉 [mybatis-plus-sample-dynamic-tablename](https://gitee.com/baomidou/mybatis-plus-samples/tree/master/mybatis-plus-sample-dynamic-tablename)
+
+    > **注意事项**：
+    >
+    > - 底层实现原理为解析替换设定表名为处理器的返回表名，表名建议可以定义复杂一些避免误替换
+    > - 例如：真实表名为 user 设定为 mp_dt_user 处理器替换为 user_2019 等
+
+5. 多租户插件
+
+6. 乐观锁配置
+
+7. SQL性能规范
+
+8. 防止全表更新与删除
+
+## 有瑕疵的地方
+
+1. 大部分情况下只是针对单表查询的操作。在面对跨多张表进行级联查询，映射多个对象的时候，该插件就基本毫无发挥的余地，这时就只能回到最原始的Mybatis操作，进行Mapper的自定义SQL编写和多对象数据的绑定
+
+2. 分页插件不能很好地处理多个` left join` 操作。在自定义编写执行SQL时，如果SQL 中包含多级` left join` 操作，而没有按照要求的格式编写语句（比方说没有给查询关联的表或者字段设置别名等），则会出现**分页查询的结果和总数不匹配**的情况 。
+
+    原因是因为MybatisPlus的分页插件在生成 countSql 时，会在 `left join` 的表不参与 `where` 条件的情况下,把 `left join` 优化掉。所以这里也是个坑
+
+3. 
